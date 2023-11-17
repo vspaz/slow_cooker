@@ -60,9 +60,9 @@ func TestDeltaCheck(t *testing.T) {
 	}
 }
 
-/// Checks that an expected value and an actual value are within deltaPercentage percent of each other.
-/// deltaPercentage must be a float between (0.0, 100.0]
-/// Returns true if the delta check succeeds.
+// / Checks that an expected value and an actual value are within deltaPercentage percent of each other.
+// / deltaPercentage must be a float between (0.0, 100.0]
+// / Returns true if the delta check succeeds.
 func deltaCheck(actualValue uint64, expectedValue uint64, deltaPercentage float64, t *testing.T) bool {
 	if deltaPercentage <= 0.0 {
 		t.Fatal("deltaPercentage cannot be 0.0 or negative")
@@ -76,9 +76,5 @@ func deltaCheck(actualValue uint64, expectedValue uint64, deltaPercentage float6
 	top := delta + expectedValue
 	bottom := expectedValue - delta
 
-	if actualValue >= bottom && actualValue <= top {
-		return true
-	}
-
-	return false
+	return actualValue >= bottom && actualValue <= top
 }

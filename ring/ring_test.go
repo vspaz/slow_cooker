@@ -1,26 +1,19 @@
 package ring
 
 import (
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
-
-type RingTestSuite struct{}
-
-var _ = Suite(&RingTestSuite{})
-
-func (*RingTestSuite) TestRing(c *C) {
+func TestRing(t *testing.T) {
 	r := New(5)
-	c.Assert(len(r.Items), Equals, 5)
+	assert.Equal(t, len(r.Items), 5)
 
 	for i := 1; i <= 10; i++ {
 		r.Push(i)
 	}
 
-	c.Assert(r.Items, DeepEquals, []int{6, 7, 8, 9, 10})
+	assert.Equal(t, []int{6, 7, 8, 9, 10}, r.Items)
 
 	// Make a ring of 6 items
 	r = New(6)
@@ -33,5 +26,5 @@ func (*RingTestSuite) TestRing(c *C) {
 	r.Push(83)
 	r.Push(2)
 	// The oldest item should be gone
-	c.Assert(r.Items, DeepEquals, []int{2, 10, 99, 50, 77, 83})
+	assert.Equal(t, []int{2, 10, 99, 50, 77, 83}, r.Items)
 }

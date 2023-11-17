@@ -125,17 +125,17 @@ func sendRequest(
 				received <- &MeasuredResponse{err: err}
 			}
 		} else {
-			if bytes, err := io.ReadAll(response.Body); err != nil {
+			if byteArray, err := io.ReadAll(response.Body); err != nil {
 				received <- &MeasuredResponse{err: err}
 			} else {
-				hasher.Write(bytes)
+				hasher.Write(byteArray)
 				sum := hasher.Sum64()
 				failedHashCheck := false
 				if hashValue != sum {
 					failedHashCheck = true
 				}
 				received <- &MeasuredResponse{
-					sz:              uint64(len(bytes)),
+					sz:              uint64(len(byteArray)),
 					code:            response.StatusCode,
 					latency:         elapsed,
 					failedHashCheck: failedHashCheck}
@@ -189,11 +189,11 @@ func loadData(data string) []byte {
 	var requestData []byte
 	var err error
 	if strings.HasPrefix(data, "@") {
-		path := data[1:]
-		if path == "-" {
+		filePath := data[1:]
+		if filePath == "-" {
 			file = os.Stdin
 		} else {
-			file, err = os.Open(path)
+			file, err = os.Open(filePath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
 				os.Exit(1)
@@ -220,11 +220,11 @@ func loadURLs(urldest string) []*url.URL {
 
 	if strings.HasPrefix(urldest, "@") {
 		var file *os.File
-		path := urldest[1:]
-		if path == "-" {
+		filePath := urldest[1:]
+		if filePath == "-" {
 			file = os.Stdin
 		} else {
-			file, err = os.Open(path)
+			file, err = os.Open(filePath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
 				os.Exit(1)
@@ -376,8 +376,8 @@ func main() {
 	good := uint64(0)
 	bad := uint64(0)
 	failed := uint64(0)
-	min := int64(math.MaxInt64)
-	max := int64(0)
+	minValue := int64(math.MaxInt64)
+	maxValue := int64(0)
 	failedHashCheck := int64(0)
 
 	// dayInTimeUnits represents the number of time units (ms, us, or ns) in a 24-hour day.
@@ -406,7 +406,7 @@ func main() {
 		fmt.Printf("# sending %d %s req/s with concurrency=%d using url list %s ...\n", (*qps * *concurrency), *method, *concurrency, urldest[1:])
 	}
 
-	fmt.Printf("# %s iter   good/b/f t   goal%% %s min [p50 p95 p99  p999]  max bhash change\n", timePadding, intPadding)
+	fmt.Printf("# %s iter   good/b/f t   goal%% %s minValue [p50 p95 p99  p999]  maxValue bhash change\n", timePadding, intPadding)
 	stride := *concurrency
 	if stride > len(dstURLs) {
 		stride = 1
@@ -480,8 +480,8 @@ func main() {
 		case t := <-timeout:
 			// When all requests are failures, ensure we don't accidentally
 			// print out a monstrously huge number.
-			if min == math.MaxInt64 {
-				min = 0
+			if minValue == math.MaxInt64 {
+				minValue = 0
 			}
 			// Periodically print stats about the request load.
 			percentAchieved := int(math.Min((((float64(good) + float64(bad)) /
@@ -504,12 +504,12 @@ func main() {
 				totalTrafficTarget,
 				percentAchieved,
 				interval,
-				min,
+				minValue,
 				hist.ValueAtQuantile(50),
 				hist.ValueAtQuantile(95),
 				hist.ValueAtQuantile(99),
 				hist.ValueAtQuantile(999),
-				max,
+				maxValue,
 				failedHashCheck,
 				changeIndicator)
 
@@ -522,8 +522,8 @@ func main() {
 			size = 0
 			good = 0
 			bad = 0
-			min = math.MaxInt64
-			max = 0
+			minValue = math.MaxInt64
+			maxValue = 0
 			failed = 0
 			failedHashCheck = 0
 			hist.Reset()
@@ -556,12 +556,12 @@ func main() {
 					bad++
 				}
 
-				if latency < min {
-					min = latency
+				if latency < minValue {
+					minValue = latency
 				}
 
-				if latency > max {
-					max = latency
+				if latency > maxValue {
+					maxValue = latency
 				}
 
 				hist.RecordValue(latency)

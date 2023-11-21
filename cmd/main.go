@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/tls"
-	"flag"
 	"fmt"
+	"github.com/vspaz/slow_cooker/internal/cli"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
 	"github.com/vspaz/slow_cooker/internal/ring"
 	"github.com/vspaz/slow_cooker/internal/window"
@@ -21,7 +20,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,7 +72,7 @@ func sendRequest(
 	method string,
 	url *url.URL,
 	host string,
-	headers headerSet,
+	headers cli.HeaderSet,
 	requestData []byte,
 	reqID uint64,
 	noreuse bool,
@@ -144,12 +142,6 @@ func sendRequest(
 	}
 }
 
-func exUsage(msg string, args ...interface{}) {
-	fmt.Fprintln(os.Stderr, fmt.Sprintf(msg, args...))
-	fmt.Fprintln(os.Stderr, "Try --help for help.")
-	os.Exit(64)
-}
-
 // CalcTimeToWait calculates how many Nanoseconds to wait between actions.
 func CalcTimeToWait(qps *int) time.Duration {
 	return time.Duration(int(time.Second) / *qps)
@@ -165,23 +157,6 @@ func finishSendingTraffic() {
 	shouldFinishLock.Lock()
 	shouldFinish = true
 	shouldFinishLock.Unlock()
-}
-
-type headerSet map[string]string
-
-func (h *headerSet) String() string {
-	return ""
-}
-
-func (h *headerSet) Set(s string) error {
-	parts := strings.SplitN(s, ":", 2)
-	if len(parts) < 2 || len(parts[0]) == 0 {
-		return fmt.Errorf("Header invalid")
-	}
-	name := strings.TrimSpace(parts[0])
-	value := strings.TrimSpace(parts[1])
-	(*h)[name] = value
-	return nil
 }
 
 func loadData(data string) []byte {
@@ -211,45 +186,6 @@ func loadData(data string) []byte {
 	}
 
 	return requestData
-}
-
-func loadURLs(urldest string) []*url.URL {
-	var urls []*url.URL
-	var err error
-	var scanner *bufio.Scanner
-
-	if strings.HasPrefix(urldest, "@") {
-		var file *os.File
-		filePath := urldest[1:]
-		if filePath == "-" {
-			file = os.Stdin
-		} else {
-			file, err = os.Open(filePath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
-			defer file.Close()
-		}
-		scanner = bufio.NewScanner(file)
-	} else {
-		scanner = bufio.NewScanner(strings.NewReader(urldest))
-	}
-
-	for i := 1; scanner.Scan(); i++ {
-		line := scanner.Text()
-		URL, err := url.Parse(line)
-		if err != nil {
-			exUsage("invalid URL on line %d: '%s': %s\n", i, line, err.Error())
-		} else if URL.Scheme == "" {
-			exUsage("invalid URL on line %d: '%s': Missing scheme\n", i, line)
-		} else if URL.Host == "" {
-			exUsage("invalid URL on line %d: '%s': Missing host\n", i, line)
-		}
-		urls = append(urls, URL)
-	}
-
-	return urls
 }
 
 var (
@@ -301,72 +237,15 @@ func shouldCheckHash(sampleRate float64) bool {
 }
 
 func Run() {
-	qps := flag.Int("qps", 1, "QPS to send to backends per request thread")
-	concurrency := flag.Int("concurrency", 1, "Number of request threads")
-	numIterations := flag.Uint64("iterations", 0, "Number of iterations (0 for infinite)")
-	host := flag.String("host", "", "value of Host header to set")
-	method := flag.String("method", "GET", "HTTP method to use")
-	interval := flag.Duration("interval", 10*time.Second, "reporting interval")
-	noreuse := flag.Bool("noreuse", false, "don't reuse connections")
-	compress := flag.Bool("compress", false, "use compression")
-	clientTimeout := flag.Duration("timeout", 10*time.Second, "individual request timeout")
-	noLatencySummary := flag.Bool("noLatencySummary", false, "suppress the final latency summary")
-	reportLatenciesCSV := flag.String("reportLatenciesCSV", "",
-		"filename to output hdrhistogram latencies in CSV")
-	latencyUnit := flag.String("latencyUnit", "ms", "latency units [ms|us|ns]")
-	help := flag.Bool("help", false, "show help message")
-	totalRequests := flag.Uint64("totalRequests", 0, "total number of requests to send before exiting")
-	headers := make(headerSet)
-	flag.Var(&headers, "header", "HTTP request header. (can be repeated.)")
-	data := flag.String("data", "", "HTTP request data")
-	metricAddr := flag.String("metric-addr", "", "address to serve metrics on")
-	hashValue := flag.Uint64("hashValue", 0, "fnv-1a hash value to check the request body against")
-	hashSampleRate := flag.Float64("hashSampleRate", 0.0, "Sampe Rate for checking request body's hash. Interval in the range of [0.0, 1.0]")
+	args := cli.GetArgs()
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s <url> [flags]\n", path.Base(os.Args[0]))
-		flag.PrintDefaults()
-	}
-
-	flag.Parse()
-
-	if *help {
-		flag.Usage()
-		os.Exit(64)
-	}
-
-	if flag.NArg() != 1 {
-		exUsage("Expecting one argument: the target url to test, e.g. http://localhost:4140/")
-	}
-
-	urldest := flag.Arg(0)
-	dstURLs := loadURLs(urldest)
-
-	if *qps < 1 {
-		exUsage("qps must be at least 1")
-	}
-
-	if *concurrency < 1 {
-		exUsage("concurrency must be at least 1")
-	}
-
-	latencyDur := time.Millisecond
-	if *latencyUnit == "ms" {
-		latencyDur = time.Millisecond
-	} else if *latencyUnit == "us" {
-		latencyDur = time.Microsecond
-	} else if *latencyUnit == "ns" {
-		latencyDur = time.Nanosecond
-	} else {
-		exUsage("latency unit should be [ms | us | ns].")
-	}
-	latencyDurNS := latencyDur.Nanoseconds()
+	latencyDurNS := args.LatencyDuration.Nanoseconds()
 	msInNS := time.Millisecond.Nanoseconds()
 	usInNS := time.Microsecond.Nanoseconds()
 
-	hosts := strings.Split(*host, ",")
+	hosts := strings.Split(args.Host, ",")
 
-	requestData := loadData(*data)
+	requestData := loadData(args.Data)
 
 	iteration := uint64(0)
 
@@ -381,37 +260,37 @@ func Run() {
 	failedHashCheck := int64(0)
 
 	// dayInTimeUnits represents the number of time units (ms, us, or ns) in a 24-hour day.
-	dayInTimeUnits := int64(24 * time.Hour / latencyDur)
+	dayInTimeUnits := int64(24 * time.Hour / args.LatencyDuration)
 
 	hist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	globalHist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	latencyHistory := ring.New(5)
 	received := make(chan *MeasuredResponse)
-	timeout := time.After(*interval)
-	timeToWait := CalcTimeToWait(qps)
+	timeout := time.After(args.Interval)
+	timeToWait := CalcTimeToWait(&args.Qps)
 	var totalTrafficTarget int
-	totalTrafficTarget = *qps * *concurrency * int(interval.Seconds())
+	totalTrafficTarget = args.Qps * args.Concurrency * int(args.Interval.Seconds())
 
-	client := newClient(*compress, *noreuse, *concurrency, *clientTimeout)
+	client := newClient(args.Compress, args.NoReuse, args.Concurrency, args.ClientTimeout)
 	var sendTraffic sync.WaitGroup
 	// The time portion of the header can change due to timezone.
 	timeLen := len(time.Now().Format(time.RFC3339))
 	timePadding := strings.Repeat(" ", timeLen-len("# "))
-	intLen := len(fmt.Sprintf("%s", *interval))
+	intLen := len(fmt.Sprintf("%s", args.Interval))
 	intPadding := strings.Repeat(" ", intLen-2)
 
-	if len(dstURLs) == 1 {
-		fmt.Printf("# sending %d %s req/s with concurrency=%d to %s ...\n", (*qps * *concurrency), *method, *concurrency, dstURLs[0])
+	if len(args.DstUrls) == 1 {
+		fmt.Printf("# sending %d %s req/s with concurrency=%d to %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[0])
 	} else {
-		fmt.Printf("# sending %d %s req/s with concurrency=%d using url list %s ...\n", (*qps * *concurrency), *method, *concurrency, urldest[1:])
+		fmt.Printf("# sending %d %s req/s with concurrency=%d using url list %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[1:])
 	}
 
 	fmt.Printf("# %s iter   good/b/f t   goal%% %s minValue [p50 p95 p99  p999]  maxValue bhash change\n", timePadding, intPadding)
-	stride := *concurrency
-	if stride > len(dstURLs) {
+	stride := args.Concurrency
+	if stride > len(args.DstUrls) {
 		stride = 1
 	}
-	for i := 0; i < *concurrency; i++ {
+	for i := 0; i < args.Concurrency; i++ {
 		ticker := time.NewTicker(timeToWait)
 		go func(offset int) {
 			y := offset
@@ -421,37 +300,37 @@ func Run() {
 			for range ticker.C {
 				var checkHash bool
 				hasher := fnv.New64a()
-				if *hashSampleRate > 0.0 {
-					checkHash = shouldCheckHash(*hashSampleRate)
+				if args.HashSampleRate > 0.0 {
+					checkHash = shouldCheckHash(args.HashSampleRate)
 				} else {
 					checkHash = false
 				}
 				shouldFinishLock.RLock()
 				if !shouldFinish {
 					shouldFinishLock.RUnlock()
-					sendRequest(client, *method, dstURLs[y], hosts[rand.Intn(len(hosts))], headers, requestData, atomic.AddUint64(&reqID, 1), *noreuse, *hashValue, checkHash, hasher, received, bodyBuffer)
+					sendRequest(client, args.Method, args.DstUrls[y], hosts[rand.Intn(len(hosts))], args.Headers, requestData, atomic.AddUint64(&reqID, 1), args.NoReuse, args.HashValue, checkHash, hasher, received, bodyBuffer)
 				} else {
 					shouldFinishLock.RUnlock()
 					sendTraffic.Done()
 					return
 				}
 				y += stride
-				if y >= len(dstURLs) {
+				if y >= len(args.DstUrls) {
 					y = offset
 				}
 			}
-		}(i % len(dstURLs))
+		}(i % len(args.DstUrls))
 	}
 
 	cleanup := make(chan bool, 3)
 	interrupted := make(chan os.Signal, 2)
 	signal.Notify(interrupted, syscall.SIGINT)
 
-	if *metricAddr != "" {
+	if args.MetricAddr != "" {
 		registerMetrics()
 		go func() {
 			http.Handle("/metrics", promhttp.Handler())
-			http.ListenAndServe(*metricAddr, nil)
+			http.ListenAndServe(args.MetricAddr, nil)
 		}()
 	}
 
@@ -462,11 +341,11 @@ func Run() {
 			cleanup <- true
 		case <-cleanup:
 			finishSendingTraffic()
-			if !*noLatencySummary {
+			if !args.NoLatencySummary {
 				hdrreport.PrintLatencySummary(globalHist)
 			}
-			if *reportLatenciesCSV != "" {
-				err := hdrreport.WriteReportCSV(reportLatenciesCSV, globalHist)
+			if args.ReportLatencyCsv != "" {
+				err := hdrreport.WriteReportCSV(&args.ReportLatencyCsv, globalHist)
 				if err != nil {
 					log.Panicf("Unable to write Latency CSV file: %v\n", err)
 				}
@@ -503,7 +382,7 @@ func Run() {
 				failed,
 				totalTrafficTarget,
 				percentAchieved,
-				interval,
+				args.Interval,
 				minValue,
 				hist.ValueAtQuantile(50),
 				hist.ValueAtQuantile(95),
@@ -515,7 +394,7 @@ func Run() {
 
 			iteration++
 
-			if *numIterations > 0 && iteration >= *numIterations {
+			if args.IterationCount > 0 && iteration >= args.IterationCount {
 				cleanup <- true
 			}
 			count = 0
@@ -527,9 +406,9 @@ func Run() {
 			failed = 0
 			failedHashCheck = 0
 			hist.Reset()
-			timeout = time.After(*interval)
+			timeout = time.After(args.Interval)
 
-			if *totalRequests != 0 && reqID > *totalRequests {
+			if args.TotalRequests != 0 && reqID > args.TotalRequests {
 				cleanup <- true
 			}
 		case managedResp := <-received:

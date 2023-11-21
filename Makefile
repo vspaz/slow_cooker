@@ -4,7 +4,7 @@ LDFLAGS="-s -w"
 
 all: build
 build:
-	go build -ldflags=$(LDFLAGS) -o $(TARGET) main.go
+	go build -race -ldflags=$(LDFLAGS) -o $(TARGET) main.go
 
 .PHONY: test
 test:

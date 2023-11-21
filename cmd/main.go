@@ -1,26 +1,20 @@
 package cmd
 
 import (
-	"bytes"
-	"crypto/tls"
 	"fmt"
 	"github.com/vspaz/slow_cooker/internal/cli"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
+	"github.com/vspaz/slow_cooker/internal/http_client"
 	"github.com/vspaz/slow_cooker/internal/ring"
 	"github.com/vspaz/slow_cooker/internal/window"
-	"hash"
 	"hash/fnv"
 	"io"
 	"log"
 	"math"
 	"math/rand"
-	"net"
 	"net/http"
-	"net/http/httptrace"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,116 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-// MeasuredResponse holds metadata about the response
-// we receive from the server under test.
-type MeasuredResponse struct {
-	sz              uint64
-	code            int
-	latency         time.Duration
-	timeout         bool
-	failedHashCheck bool
-	err             error
-}
-
-func newClient(
-	compress bool,
-	noreuse bool,
-	maxConn int,
-	timeout time.Duration,
-) *http.Client {
-	tr := http.Transport{
-		DisableCompression:  !compress,
-		DisableKeepAlives:   noreuse,
-		MaxIdleConnsPerHost: maxConn,
-		Proxy:               http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout: 5 * time.Second,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-	}
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: &tr,
-	}
-}
-
-func sendRequest(
-	client *http.Client,
-	method string,
-	url *url.URL,
-	host string,
-	headers cli.HeaderSet,
-	requestData []byte,
-	reqID uint64,
-	noreuse bool,
-	hashValue uint64,
-	checkHash bool,
-	hasher hash.Hash64,
-	received chan *MeasuredResponse,
-	bodyBuffer []byte,
-) {
-	req, err := http.NewRequest(method, url.String(), bytes.NewBuffer(requestData))
-	req.Close = noreuse
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		fmt.Fprintf(os.Stderr, "\n")
-	}
-	if host != "" {
-		req.Host = host
-	}
-	req.Header.Add("Sc-Req-Id", strconv.FormatUint(reqID, 10))
-	for k, v := range headers {
-		req.Header.Add(k, v)
-	}
-
-	var elapsed time.Duration
-	start := time.Now()
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			elapsed = time.Since(start)
-		},
-	}
-
-	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-	response, err := client.Do(req)
-
-	if err != nil {
-		received <- &MeasuredResponse{err: err}
-	} else {
-		defer response.Body.Close()
-		if !checkHash {
-			if sz, err := io.CopyBuffer(io.Discard, response.Body, bodyBuffer); err == nil {
-
-				received <- &MeasuredResponse{
-					sz:      uint64(sz),
-					code:    response.StatusCode,
-					latency: elapsed}
-			} else {
-				received <- &MeasuredResponse{err: err}
-			}
-		} else {
-			if byteArray, err := io.ReadAll(response.Body); err != nil {
-				received <- &MeasuredResponse{err: err}
-			} else {
-				hasher.Write(byteArray)
-				sum := hasher.Sum64()
-				failedHashCheck := false
-				if hashValue != sum {
-					failedHashCheck = true
-				}
-				received <- &MeasuredResponse{
-					sz:              uint64(len(byteArray)),
-					code:            response.StatusCode,
-					latency:         elapsed,
-					failedHashCheck: failedHashCheck}
-			}
-		}
-	}
-}
 
 // CalcTimeToWait calculates how many Nanoseconds to wait between actions.
 func CalcTimeToWait(qps *int) time.Duration {
@@ -265,13 +149,13 @@ func Run() {
 	hist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	globalHist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	latencyHistory := ring.New(5)
-	received := make(chan *MeasuredResponse)
+	received := make(chan *http_client.MeasuredResponse)
 	timeout := time.After(args.Interval)
 	timeToWait := CalcTimeToWait(&args.Qps)
 	var totalTrafficTarget int
 	totalTrafficTarget = args.Qps * args.Concurrency * int(args.Interval.Seconds())
 
-	client := newClient(args.Compress, args.NoReuse, args.Concurrency, args.ClientTimeout)
+	client := http_client.NewClient(args.Compress, args.NoReuse, args.Concurrency, args.ClientTimeout)
 	var sendTraffic sync.WaitGroup
 	// The time portion of the header can change due to timezone.
 	timeLen := len(time.Now().Format(time.RFC3339))
@@ -308,7 +192,7 @@ func Run() {
 				shouldFinishLock.RLock()
 				if !shouldFinish {
 					shouldFinishLock.RUnlock()
-					sendRequest(client, args.Method, args.DstUrls[y], hosts[rand.Intn(len(hosts))], args.Headers, requestData, atomic.AddUint64(&reqID, 1), args.NoReuse, args.HashValue, checkHash, hasher, received, bodyBuffer)
+					http_client.SendRequest(client, args.Method, args.DstUrls[y], hosts[rand.Intn(len(hosts))], args.Headers, requestData, atomic.AddUint64(&reqID, 1), args.NoReuse, args.HashValue, checkHash, hasher, received, bodyBuffer)
 				} else {
 					shouldFinishLock.RUnlock()
 					sendTraffic.Done()
@@ -414,18 +298,18 @@ func Run() {
 		case managedResp := <-received:
 			count++
 			promRequests.Inc()
-			if managedResp.err != nil {
-				fmt.Fprintln(os.Stderr, managedResp.err)
+			if managedResp.Err != nil {
+				fmt.Fprintln(os.Stderr, managedResp.Err)
 				failed++
 			} else {
-				respLatencyNS := managedResp.latency.Nanoseconds()
+				respLatencyNS := managedResp.Latency.Nanoseconds()
 				latency := respLatencyNS / latencyDurNS
 
-				size += managedResp.sz
-				if managedResp.failedHashCheck {
+				size += managedResp.Sz
+				if managedResp.FailedHashCheck {
 					failedHashCheck++
 				}
-				if managedResp.code >= 200 && managedResp.code < 500 {
+				if managedResp.Code >= 200 && managedResp.Code < 500 {
 					good++
 					promSuccesses.Inc()
 					promLatencyMSHistogram.Observe(float64(respLatencyNS / msInNS))

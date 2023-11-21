@@ -4,29 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/vspaz/slow_cooker/internal/http_client"
 	"net/url"
 	"os"
 	"path"
 	"strings"
 	"time"
 )
-
-type HeaderSet map[string]string
-
-func (h *HeaderSet) String() string {
-	return ""
-}
-
-func (h *HeaderSet) Set(s string) error {
-	parts := strings.SplitN(s, ":", 2)
-	if len(parts) < 2 || len(parts[0]) == 0 {
-		return fmt.Errorf("Header invalid")
-	}
-	name := strings.TrimSpace(parts[0])
-	value := strings.TrimSpace(parts[1])
-	(*h)[name] = value
-	return nil
-}
 
 type Args struct {
 	Qps              int
@@ -44,7 +28,7 @@ type Args struct {
 	LatencyDuration  time.Duration
 	Help             bool
 	TotalRequests    uint64
-	Headers          HeaderSet
+	Headers          http_client.HeaderSet
 	Data             string
 	MetricAddr       string
 	HashValue        uint64
@@ -113,7 +97,7 @@ func GetArgs() Args {
 	latencyUnit := flag.String("latencyUnit", "ms", "latency units [ms|us|ns]")
 	help := flag.Bool("help", false, "show help message")
 	totalRequests := flag.Uint64("totalRequests", 0, "total number of requests to send before exiting")
-	headers := make(HeaderSet)
+	headers := make(http_client.HeaderSet)
 	flag.Var(&headers, "header", "HTTP request header. (can be repeated.)")
 	data := flag.String("data", "", "HTTP request data")
 	metricAddr := flag.String("metric-addr", "", "address to serve metrics on")

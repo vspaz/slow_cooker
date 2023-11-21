@@ -6,6 +6,9 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/vspaz/slow_cooker/internal/hdrreport"
+	"github.com/vspaz/slow_cooker/internal/ring"
+	"github.com/vspaz/slow_cooker/internal/window"
 	"hash"
 	"hash/fnv"
 	"io"
@@ -29,9 +32,6 @@ import (
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/vspaz/slow_cooker/hdrreport"
-	"github.com/vspaz/slow_cooker/ring"
-	"github.com/vspaz/slow_cooker/window"
 )
 
 // MeasuredResponse holds metadata about the response

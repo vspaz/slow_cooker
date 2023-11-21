@@ -1,6 +1,8 @@
-package main
+package cmd
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestHashSampling(t *testing.T) {
 	// With a samplingRate of 0.0 we never check.

@@ -300,7 +300,7 @@ func shouldCheckHash(sampleRate float64) bool {
 	return rand.Float64() < sampleRate
 }
 
-func main() {
+func Run() {
 	qps := flag.Int("qps", 1, "QPS to send to backends per request thread")
 	concurrency := flag.Int("concurrency", 1, "Number of request threads")
 	numIterations := flag.Uint64("iterations", 0, "Number of iterations (0 for infinite)")

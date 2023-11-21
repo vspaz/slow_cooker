@@ -4,7 +4,7 @@ LDFLAGS="-s -w"
 
 all: build
 build:
-	go build -ldflags=$(LDFLAGS) -o $(TARGET) cmd/main.go
+	go build -ldflags=$(LDFLAGS) -o $(TARGET) main.go
 
 .PHONY: test
 test:
@@ -17,3 +17,8 @@ clean:
 .PHONY: style-fix
 style-fix:
 	gofmt -w .
+
+.PHONY: upgrade
+upgrade:
+	go mod tidy
+	go get -u all ./...

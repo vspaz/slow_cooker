@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Next release
 
+## [2.0.0] - 2023-12-03
+### Changed
+- Upgraded to Go 1.21.
+
 ## [1.2.0] - 2018-08-10
 ### Added
 - Added support for configuring latency time units via a `-latencyUnit` flag.

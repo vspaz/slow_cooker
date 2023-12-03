@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRing(t *testing.T) {
+func TestRingOk(t *testing.T) {
 	r := New(5)
 	assert.Equal(t, len(r.Items), 5)
 

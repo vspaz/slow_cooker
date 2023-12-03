@@ -1,26 +1,29 @@
 package cmd
 
 import (
+	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
-func TestQpsCalc(t *testing.T) {
+func TestQpsCalcOk(t *testing.T) {
 	// At 100 qps, we expect to wait 10 milliseconds
-	checkDuration(100, 10, t)
-	// At 1000 qps, we expect to wait 1 milliseconds
-	checkDuration(1000, 1, t)
+	assertWaitMs(t, 10, 100)
+	// At 1000 qps, we expect to wait 1 millisecond
+	assertWaitMs(t, 1, 1000)
 	// At 150 qps, we expect to wait 6.666 milliseconds
-	checkDuration(150, 6.666666, t)
+	assertWaitMs(t, 6.666666, 150)
 	// At 134 qps, we expect to wait 7.462 milliseconds
-	checkDuration(134, 7.462686, t)
+	assertWaitMs(t, 7.462686, 134)
 }
 
-func checkDuration(targetQPS int, expectedWaitTimeMs float64, t *testing.T) {
+func assertWaitMs(t *testing.T, expectedWaitTimeMs float64, targetQPS int) {
 	expected := time.Duration(expectedWaitTimeMs * float64(time.Millisecond))
 	got := CalcTimeToWait(&targetQPS)
-	if expected != got {
-		t.Errorf("For %d qps, expected to wait %s, instead we wait %s",
-			targetQPS, expected, got)
-	}
+	assert.Equal(
+		t,
+		expected,
+		got,
+		fmt.Sprintf("For %d qps, expected to wait %s, instead we wait %s", targetQPS, expected, got))
 }

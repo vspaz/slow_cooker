@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestHashSampling(t *testing.T) {
+func TestHashSamplingOk(t *testing.T) {
 	// With a samplingRate of 0.0 we never check.
 	assertIterationsChecked(t, 100000, 0.0, 0)
 	// With a samplingRate of 0.01 we check 1% of the values

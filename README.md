@@ -11,7 +11,7 @@ periodic reports of qps and latency.
 
 # Running it
 ```shell
-`make build 
+make build 
 ./slow_cooker <url>`
 ```
 
@@ -19,7 +19,7 @@ periodic reports of qps and latency.
 
 ```shell
 make test
-````
+```
 
 # Flags
 

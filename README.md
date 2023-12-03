@@ -10,16 +10,16 @@ period of time. Instead of getting a report at the end, we wanted
 periodic reports of qps and latency.
 
 # Running it
-
-`go build; ./slow_cooker <url>`
-
-or:
-
-`go run main.go <url>`
+```shell
+`make build 
+./slow_cooker <url>`
+```
 
 # Testing
 
-`go test ./...`
+```shell
+make test
+````
 
 # Flags
 

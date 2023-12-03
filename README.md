@@ -1,8 +1,10 @@
 [![CircleCI](https://circleci.com/gh/BuoyantIO/slow_cooker.svg?style=shield)](https://circleci.com/gh/BuoyantIO/slow_cooker)
 
 # slow_cooker
-A load tester for tenderizing your servers.
-
+slow cooker is very minimalistic but yet a very powerful load test tool 
+which is very easy to use and tailor to your needs even if
+you have to deal with thousands of different endpoints.
+This is a load tester for tenderizing your servers.
 Most load testers work by sending as much traffic as possible to a
 backend. We wanted a different approach, we wanted to be able to test
 a service with a predictable load and concurrency level for a long
@@ -12,7 +14,7 @@ periodic reports of qps and latency.
 # Running it
 ```shell
 make build 
-./slow_cooker <url>`
+./slow_cooker <url>
 ```
 
 # Testing

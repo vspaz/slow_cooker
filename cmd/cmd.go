@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"github.com/vspaz/slow_cooker/internal/cli"
-	"github.com/vspaz/slow_cooker/internal/hashing"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
 	"github.com/vspaz/slow_cooker/internal/http_client"
 	"github.com/vspaz/slow_cooker/internal/ring"
+	"github.com/vspaz/slow_cooker/internal/utils"
 	"github.com/vspaz/slow_cooker/internal/window"
 	"hash/fnv"
 	"io"
@@ -26,11 +26,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-// CalcTimeToWait calculates how many Nanoseconds to wait between actions.
-func CalcTimeToWait(qps *int) time.Duration {
-	return time.Duration(int(time.Second) / *qps)
-}
 
 var reqID = uint64(0)
 
@@ -146,7 +141,7 @@ func Run() {
 	latencyHistory := ring.New(5)
 	received := make(chan *http_client.MeasuredResponse)
 	timeout := time.After(args.Interval)
-	timeToWait := CalcTimeToWait(&args.Qps)
+	timeToWait := utils.CalcTimeToWait(&args.Qps)
 	var totalTrafficTarget int
 	totalTrafficTarget = args.Qps * args.Concurrency * int(args.Interval.Seconds())
 
@@ -180,7 +175,7 @@ func Run() {
 				var checkHash bool
 				hasher := fnv.New64a()
 				if args.HashSampleRate > 0.0 {
-					checkHash = hashing.ShouldCheckHash(args.HashSampleRate)
+					checkHash = utils.ShouldCheckHash(args.HashSampleRate)
 				} else {
 					checkHash = false
 				}

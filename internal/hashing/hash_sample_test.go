@@ -1,4 +1,4 @@
-package cmd
+package hashing
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func assertIterationsChecked(t *testing.T, iterations uint64, sampleRate float64
 
 func shouldCheckHashTest(samplingRate float64, iterations uint64) (checked uint64) {
 	for i := uint64(0); i < iterations; i++ {
-		if shouldCheckHash(samplingRate) {
+		if ShouldCheckHash(samplingRate) {
 			checked++
 		}
 	}

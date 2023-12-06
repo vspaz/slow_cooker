@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/vspaz/slow_cooker/internal/cli"
+	"github.com/vspaz/slow_cooker/internal/hashing"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
 	"github.com/vspaz/slow_cooker/internal/http_client"
 	"github.com/vspaz/slow_cooker/internal/ring"
@@ -114,12 +115,6 @@ func registerMetrics() {
 	prometheus.MustRegister(promLatencyNSHistogram)
 }
 
-// Sample Rate is between [0.0, 1.0] and determines what percentage of request bodies
-// should be checked that their hash matches a known hash.
-func shouldCheckHash(sampleRate float64) bool {
-	return rand.Float64() < sampleRate
-}
-
 func Run() {
 	args := cli.GetArgs()
 
@@ -185,7 +180,7 @@ func Run() {
 				var checkHash bool
 				hasher := fnv.New64a()
 				if args.HashSampleRate > 0.0 {
-					checkHash = shouldCheckHash(args.HashSampleRate)
+					checkHash = hashing.ShouldCheckHash(args.HashSampleRate)
 				} else {
 					checkHash = false
 				}

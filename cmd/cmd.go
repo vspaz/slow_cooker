@@ -90,36 +90,34 @@ func Run() {
 			bodyBuffer := make([]byte, 50000)
 			sendTraffic.Add(1)
 			for range ticker.C {
-				var checkHash bool
+				checkHash := false
 				hasher := fnv.New64a()
 				if args.HashSampleRate > 0.0 {
 					checkHash = utils.ShouldCheckHash(args.HashSampleRate)
-				} else {
-					checkHash = false
 				}
 				shouldFinishLock.RLock()
-				if !shouldFinish {
-					shouldFinishLock.RUnlock()
-					http_client.SendRequest(
-						client,
-						args.Method,
-						args.DstUrls[y],
-						hosts[rand.Intn(len(hosts))],
-						args.Headers,
-						requestData,
-						atomic.AddUint64(&reqID, 1),
-						args.NoReuse,
-						args.HashValue,
-						checkHash,
-						hasher,
-						received,
-						bodyBuffer,
-					)
-				} else {
+				if shouldFinish {
 					shouldFinishLock.RUnlock()
 					sendTraffic.Done()
 					return
 				}
+				shouldFinishLock.RUnlock()
+				http_client.SendRequest(
+					client,
+					args.Method,
+					args.DstUrls[y],
+					hosts[rand.Intn(len(hosts))],
+					args.Headers,
+					requestData,
+					atomic.AddUint64(&reqID, 1),
+					args.NoReuse,
+					args.HashValue,
+					checkHash,
+					hasher,
+					received,
+					bodyBuffer,
+				)
+
 				y += stride
 				if y >= len(args.DstUrls) {
 					y = offset

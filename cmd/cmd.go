@@ -10,11 +10,9 @@ import (
 	"github.com/vspaz/slow_cooker/internal/utils"
 	"github.com/vspaz/slow_cooker/internal/window"
 	"hash/fnv"
-	"io"
 	"log"
 	"math"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -24,13 +22,12 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var reqID = uint64(0)
-
-var shouldFinish = false
-var shouldFinishLock sync.RWMutex
+var (
+	shouldFinish     = false
+	shouldFinishLock sync.RWMutex
+)
 
 // finishSendingTraffic signals the system to stop sending traffic and clean up after itself.
 func finishSendingTraffic() {
@@ -39,48 +36,17 @@ func finishSendingTraffic() {
 	shouldFinishLock.Unlock()
 }
 
-func loadData(data string) []byte {
-	var file *os.File
-	var requestData []byte
-	var err error
-	if strings.HasPrefix(data, "@") {
-		filePath := data[1:]
-		if filePath == "-" {
-			file = os.Stdin
-		} else {
-			file, err = os.Open(filePath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
-			defer file.Close()
-		}
-
-		requestData, err = io.ReadAll(file)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-	} else {
-		requestData = []byte(data)
-	}
-
-	return requestData
-}
-
 func Run() {
 	args := cli.GetArgs()
 
 	latencyDurNS := args.LatencyDuration.Nanoseconds()
-	msInNS := time.Millisecond.Nanoseconds()
-	usInNS := time.Microsecond.Nanoseconds()
 
 	hosts := strings.Split(args.Host, ",")
 
-	requestData := loadData(args.Data)
+	requestData := utils.LoadData(args.Data)
 
 	iteration := uint64(0)
-
+	reqID := uint64(0)
 	// Response tracking metadata.
 	count := uint64(0)
 	size := uint64(0)
@@ -100,8 +66,7 @@ func Run() {
 	received := make(chan *http_client.MeasuredResponse)
 	timeout := time.After(args.Interval)
 	timeToWait := utils.CalcTimeToWait(&args.Qps)
-	var totalTrafficTarget int
-	totalTrafficTarget = args.Qps * args.Concurrency * int(args.Interval.Seconds())
+	totalTrafficTarget := args.Qps * args.Concurrency * int(args.Interval.Seconds())
 
 	client := http_client.NewClient(args.Compress, args.NoReuse, args.Concurrency, args.ClientTimeout)
 	var sendTraffic sync.WaitGroup
@@ -111,12 +76,7 @@ func Run() {
 	intLen := len(fmt.Sprintf("%s", args.Interval))
 	intPadding := strings.Repeat(" ", intLen-2)
 
-	if len(args.DstUrls) == 1 {
-		fmt.Printf("# sending %d %s req/s with concurrency=%d to %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[0])
-	} else {
-		fmt.Printf("# sending %d %s req/s with concurrency=%d using url list %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[1:])
-	}
-
+	println(utils.GetRequestInfo(&args))
 	fmt.Printf("# %s iter   good/b/f t   goal%% %s minValue [p50 p95 p99  p999]  maxValue bhash change\n", timePadding, intPadding)
 	stride := args.Concurrency
 	if stride > len(args.DstUrls) {
@@ -160,10 +120,7 @@ func Run() {
 
 	if args.MetricAddr != "" {
 		metrics.RegisterMetrics()
-		go func() {
-			http.Handle("/metrics", promhttp.Handler())
-			http.ListenAndServe(args.MetricAddr, nil)
-		}()
+		go metrics.RunServer(&args)
 	}
 
 	for {
@@ -251,7 +208,6 @@ func Run() {
 				failed++
 			} else {
 				respLatencyNS := managedResp.Latency.Nanoseconds()
-				latency := respLatencyNS / latencyDurNS
 
 				size += managedResp.Sz
 				if managedResp.FailedHashCheck {
@@ -259,13 +215,12 @@ func Run() {
 				}
 				if managedResp.Code >= 200 && managedResp.Code < 500 {
 					good++
-					metrics.PromSuccesses.Inc()
-					metrics.PromLatencyMSHistogram.Observe(float64(respLatencyNS / msInNS))
-					metrics.PromLatencyUSHistogram.Observe(float64(respLatencyNS / usInNS))
-					metrics.PromLatencyNSHistogram.Observe(float64(respLatencyNS))
+					metrics.UpdateLatencyMetrics(respLatencyNS)
 				} else {
 					bad++
 				}
+
+				latency := respLatencyNS / latencyDurNS
 
 				if latency < minValue {
 					minValue = latency

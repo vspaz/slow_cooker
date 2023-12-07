@@ -1,6 +1,12 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/vspaz/slow_cooker/internal/cli"
+	"net/http"
+	"time"
+)
 
 var (
 	PromRequests = prometheus.NewCounter(prometheus.CounterOpts{
@@ -35,6 +41,9 @@ var (
 		// TODO: make this tunable
 		Buckets: prometheus.ExponentialBuckets(1, 1.5, 50),
 	})
+
+	msInNS = time.Millisecond.Nanoseconds()
+	usInNS = time.Microsecond.Nanoseconds()
 )
 
 func RegisterMetrics() {
@@ -43,4 +52,16 @@ func RegisterMetrics() {
 	prometheus.MustRegister(PromLatencyMSHistogram)
 	prometheus.MustRegister(PromLatencyUSHistogram)
 	prometheus.MustRegister(PromLatencyNSHistogram)
+}
+
+func UpdateLatencyMetrics(respLatencyNS int64) {
+	PromSuccesses.Inc()
+	PromLatencyMSHistogram.Observe(float64(respLatencyNS / msInNS))
+	PromLatencyUSHistogram.Observe(float64(respLatencyNS / usInNS))
+	PromLatencyNSHistogram.Observe(float64(respLatencyNS))
+}
+
+func RunServer(args *cli.Args) {
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(args.MetricAddr, nil)
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/vspaz/slow_cooker/internal/cli"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
 	"github.com/vspaz/slow_cooker/internal/http_client"
+	"github.com/vspaz/slow_cooker/internal/metrics"
 	"github.com/vspaz/slow_cooker/internal/ring"
 	"github.com/vspaz/slow_cooker/internal/utils"
 	"github.com/vspaz/slow_cooker/internal/window"
@@ -23,7 +24,6 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -66,48 +66,6 @@ func loadData(data string) []byte {
 	}
 
 	return requestData
-}
-
-var (
-	promRequests = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "requests",
-		Help: "Number of requests",
-	})
-
-	promSuccesses = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "successes",
-		Help: "Number of successful requests",
-	})
-
-	promLatencyMSHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: "latency_ms",
-		Help: "RPC latency distributions in milliseconds.",
-		// 50 exponential buckets ranging from 0.5 ms to 3 minutes
-		// TODO: make this tunable
-		Buckets: prometheus.ExponentialBuckets(0.5, 1.3, 50),
-	})
-	promLatencyUSHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: "latency_us",
-		Help: "RPC latency distributions in microseconds.",
-		// 50 exponential buckets ranging from 1 us to 2.4 seconds
-		// TODO: make this tunable
-		Buckets: prometheus.ExponentialBuckets(1, 1.35, 50),
-	})
-	promLatencyNSHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: "latency_ns",
-		Help: "RPC latency distributions in nanoseconds.",
-		// 50 exponential buckets ranging from 1 ns to 0.4 seconds
-		// TODO: make this tunable
-		Buckets: prometheus.ExponentialBuckets(1, 1.5, 50),
-	})
-)
-
-func registerMetrics() {
-	prometheus.MustRegister(promRequests)
-	prometheus.MustRegister(promSuccesses)
-	prometheus.MustRegister(promLatencyMSHistogram)
-	prometheus.MustRegister(promLatencyUSHistogram)
-	prometheus.MustRegister(promLatencyNSHistogram)
 }
 
 func Run() {
@@ -201,7 +159,7 @@ func Run() {
 	signal.Notify(interrupted, syscall.SIGINT)
 
 	if args.MetricAddr != "" {
-		registerMetrics()
+		metrics.RegisterMetrics()
 		go func() {
 			http.Handle("/metrics", promhttp.Handler())
 			http.ListenAndServe(args.MetricAddr, nil)
@@ -287,7 +245,7 @@ func Run() {
 			}
 		case managedResp := <-received:
 			count++
-			promRequests.Inc()
+			metrics.PromRequests.Inc()
 			if managedResp.Err != nil {
 				fmt.Fprintln(os.Stderr, managedResp.Err)
 				failed++
@@ -301,10 +259,10 @@ func Run() {
 				}
 				if managedResp.Code >= 200 && managedResp.Code < 500 {
 					good++
-					promSuccesses.Inc()
-					promLatencyMSHistogram.Observe(float64(respLatencyNS / msInNS))
-					promLatencyUSHistogram.Observe(float64(respLatencyNS / usInNS))
-					promLatencyNSHistogram.Observe(float64(respLatencyNS))
+					metrics.PromSuccesses.Inc()
+					metrics.PromLatencyMSHistogram.Observe(float64(respLatencyNS / msInNS))
+					metrics.PromLatencyUSHistogram.Observe(float64(respLatencyNS / usInNS))
+					metrics.PromLatencyNSHistogram.Observe(float64(respLatencyNS))
 				} else {
 					bad++
 				}

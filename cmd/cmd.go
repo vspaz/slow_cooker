@@ -100,7 +100,21 @@ func Run() {
 				shouldFinishLock.RLock()
 				if !shouldFinish {
 					shouldFinishLock.RUnlock()
-					http_client.SendRequest(client, args.Method, args.DstUrls[y], hosts[rand.Intn(len(hosts))], args.Headers, requestData, atomic.AddUint64(&reqID, 1), args.NoReuse, args.HashValue, checkHash, hasher, received, bodyBuffer)
+					http_client.SendRequest(
+						client,
+						args.Method,
+						args.DstUrls[y],
+						hosts[rand.Intn(len(hosts))],
+						args.Headers,
+						requestData,
+						atomic.AddUint64(&reqID, 1),
+						args.NoReuse,
+						args.HashValue,
+						checkHash,
+						hasher,
+						received,
+						bodyBuffer,
+					)
 				} else {
 					shouldFinishLock.RUnlock()
 					sendTraffic.Done()

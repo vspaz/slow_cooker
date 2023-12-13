@@ -4,10 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Next release
-
-## [2.0.0] - 2023-12-03
+## [3.0.1] - 2023-12-13
 ### Changed
-- Upgraded to Go 1.21.
+- `header` flag is renamed to `headers` and can now accept multiple headers.
+- Upgraded to Go 1.21, 
+- Removed deprecated code and revamped the codebase
+- Fixed and added more tests
 
 ## [1.2.0] - 2018-08-10
 ### Added

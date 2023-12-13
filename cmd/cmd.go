@@ -32,8 +32,8 @@ var (
 // finishSendingTraffic signals the system to stop sending traffic and clean up after itself.
 func finishSendingTraffic() {
 	shouldFinishLock.Lock()
+	defer shouldFinishLock.Unlock()
 	shouldFinish = true
-	shouldFinishLock.Unlock()
 }
 
 func Run() {

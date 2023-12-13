@@ -16,21 +16,20 @@ import (
 	"time"
 )
 
-type HeaderSet map[string]string
-
-func (h *HeaderSet) String() string {
-	return ""
-}
-
-func (h *HeaderSet) Set(s string) error {
-	parts := strings.SplitN(s, ":", 2)
-	if len(parts) < 2 || len(parts[0]) == 0 {
-		return fmt.Errorf("Header invalid")
+func GetHeaders(text string) map[string]string {
+	headerNameToValue := make(map[string]string)
+	headers := strings.Split(text, ",")
+	for _, header := range headers {
+		headerNameAndValue := strings.Split(header, ":")
+		if len(headerNameAndValue) == 2 {
+			headerName := strings.TrimSpace(headerNameAndValue[0])
+			headerValue := strings.TrimSpace(headerNameAndValue[1])
+			if len(headerName) > 0 {
+				headerNameToValue[headerName] = headerValue
+			}
+		}
 	}
-	name := strings.TrimSpace(parts[0])
-	value := strings.TrimSpace(parts[1])
-	(*h)[name] = value
-	return nil
+	return headerNameToValue
 }
 
 func NewClient(
@@ -72,7 +71,7 @@ func SendRequest(
 	method string,
 	url *url.URL,
 	host string,
-	headers HeaderSet,
+	headers map[string]string,
 	requestData []byte,
 	reqID uint64,
 	noreuse bool,

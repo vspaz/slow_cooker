@@ -28,7 +28,7 @@ type Args struct {
 	LatencyDuration  time.Duration
 	Help             bool
 	TotalRequests    uint64
-	Headers          http_client.HeaderSet
+	Headers          map[string]string
 	Data             string
 	MetricAddr       string
 	HashValue        uint64
@@ -86,7 +86,7 @@ func GetArgs() Args {
 	concurrency := flag.Int("concurrency", 1, "Number of request threads")
 	iterationCount := flag.Uint64("iterations", 0, "Number of iterations (0 for infinite)")
 	host := flag.String("host", "", "value of Host header to set")
-	method := flag.String("method", "GET", "HTTP method to use")
+	method := flag.String("method", "POST", "HTTP method to use")
 	interval := flag.Duration("interval", 10*time.Second, "reporting interval")
 	noreuse := flag.Bool("noreuse", false, "don't reuse connections")
 	compress := flag.Bool("compress", false, "use compression")
@@ -97,8 +97,7 @@ func GetArgs() Args {
 	latencyUnit := flag.String("latencyUnit", "ms", "latency units [ms|us|ns]")
 	help := flag.Bool("help", false, "show help message")
 	totalRequests := flag.Uint64("totalRequests", 0, "total number of requests to send before exiting")
-	headers := make(http_client.HeaderSet)
-	flag.Var(&headers, "header", "HTTP request header. (can be repeated.)")
+	headerString := flag.String("headers", "", "HTTP request headers separated by a comma, e.g. \"Content-Type: application/json\"")
 	data := flag.String("data", "", "HTTP request data")
 	metricAddr := flag.String("metric-addr", "", "address to serve metrics on")
 	hashValue := flag.Uint64("hashValue", 0, "fnv-1a hash value to check the request body against")
@@ -155,6 +154,7 @@ func GetArgs() Args {
 		LatencyDuration:  latencyDur,
 		Help:             *help,
 		TotalRequests:    *totalRequests,
+		Headers:          http_client.GetHeaders(*headerString),
 		Data:             *data,
 		MetricAddr:       *metricAddr,
 		HashValue:        *hashValue,

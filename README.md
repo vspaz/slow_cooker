@@ -25,27 +25,27 @@ make test
 
 # Flags
 
-| Flag                  | Default   | Description |
-|-----------------------|-----------|-------------|
-| `-qps`                | 1         | QPS to send to backends per request thread. |
-| `-concurrency`        | 1         | Number of goroutines to run, each at the specified QPS level. Measure total QPS as `qps * concurrency`. |
-| `-iterations`         | 0         | Number of iterations for the experiment. Exits gracefully after `iterations * interval` (default 0, meaning infinite). |
-| `-compress`           | `<unset>` | If set, ask for compressed responses. |
+| Flag                  | Default   | Description                                                                                                                                                                                                                    |
+|-----------------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-qps`                | 1         | QPS to send to backends per request thread.                                                                                                                                                                                    |
+| `-concurrency`        | 1         | Number of goroutines to run, each at the specified QPS level. Measure total QPS as `qps * concurrency`.                                                                                                                        |
+| `-iterations`         | 0         | Number of iterations for the experiment. Exits gracefully after `iterations * interval` (default 0, meaning infinite).                                                                                                         |
+| `-compress`           | `<unset>` | If set, ask for compressed responses.                                                                                                                                                                                          |
 | `-data`               | `<none>`  | Include the specified body data in requests. If the data starts with a '@' the remaining value will be treated as a file path to read the body data from, or if the data value is '@-', the body data will be read from stdin. |
-| `-hashSampleRate`     | `0.0`     | Sampe Rate for checking request body's hash. Interval in the range of [0.0, 1.0] |
-| `-hashValue`          | `<none>`  | fnv-1a hash value to check the request body against |
-| `-header`             | `<none>`  | Adds additional headers to each request. Can be specified multiple times. Format is `key: value`. |
-| `-host`               | `<none>`  | Overrides the default host header value that's set on each request. |
-| `-interval`           | 10s       | How often to report stats to stdout. |
-| `-latencyUnit`        | ms        | latency units [ms|us|ns]. |
-| `-method`             | GET       | Determines which HTTP method to use when making the request. |
-| `-metric-addr`        | `<none>`  | Address to use when serving the Prometheus `/metrics` endpoint. No metrics are served if unset. Format is `host:port` or `:port`. |
-| `-noLatencySummary`   | `<unset>` | If set, don't print the latency histogram report at the end. |
-| `-noreuse`            | `<unset>` | If set, do not reuse connections. Default is to reuse connections. |
-| `-reportLatenciesCSV` | `<none>`  | Filename to write CSV latency values. Format of CSV is millisecond buckets with number of requests in each bucket. |
-| `-timeout`            | 10s       | Individual request timeout. |
-| `-totalRequests`      | `<none>`  | Exit after sending this many requests. |
-| `-help`               | `<unset>` | If set, print all available flags and exit. |
+| `-hashSampleRate`     | `0.0`     | Sampe Rate for checking request body's hash. Interval in the range of [0.0, 1.0]                                                                                                                                               |
+| `-hashValue`          | `<none>`  | fnv-1a hash value to check the request body against                                                                                                                                                                            |
+| `-headers`            | `<none>`  | Adds one or more headers to each request. Format is `"key1: value1, key2: value2"`.                                                                                                                                              |
+| `-host`               | `<none>`  | Overrides the default host header value that's set on each request.                                                                                                                                                            |
+| `-interval`           | 10s       | How often to report stats to stdout.                                                                                                                                                                                           |
+| `-latencyUnit`        | ms        | latency units [ms                                                                                                                                                                                                              |us|ns]. |
+| `-method`             | GET       | Determines which HTTP method to use when making the request.                                                                                                                                                                   |
+| `-metric-addr`        | `<none>`  | Address to use when serving the Prometheus `/metrics` endpoint. No metrics are served if unset. Format is `host:port` or `:port`.                                                                                              |
+| `-noLatencySummary`   | `<unset>` | If set, don't print the latency histogram report at the end.                                                                                                                                                                   |
+| `-noreuse`            | `<unset>` | If set, do not reuse connections. Default is to reuse connections.                                                                                                                                                             |
+| `-reportLatenciesCSV` | `<none>`  | Filename to write CSV latency values. Format of CSV is millisecond buckets with number of requests in each bucket.                                                                                                             |
+| `-timeout`            | 10s       | Individual request timeout.                                                                                                                                                                                                    |
+| `-totalRequests`      | `<none>`  | Exit after sending this many requests.                                                                                                                                                                                         |
+| `-help`               | `<unset>` | If set, print all available flags and exit.                                                                                                                                                                                    |
 
 # Using a URL file
 

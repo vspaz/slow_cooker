@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -15,7 +16,7 @@ type Args struct {
 	Qps              int
 	Concurrency      int
 	IterationCount   uint64
-	Host             string
+	Host             []string
 	Method           string
 	Interval         time.Duration
 	NoReuse          bool
@@ -28,7 +29,7 @@ type Args struct {
 	Help             bool
 	TotalRequests    uint64
 	Headers          map[string]string
-	Data             string
+	Data             []byte
 	MetricAddr       string
 	HashValue        uint64
 	HashSampleRate   float64
@@ -55,6 +56,35 @@ func getHeaders(text string) map[string]string {
 		}
 	}
 	return headerNameToValue
+}
+
+func loadBodyPayload(data string) []byte {
+	var file *os.File
+	var body []byte
+	var err error
+	if strings.HasPrefix(data, "@") {
+		filePath := data[1:]
+		if filePath == "-" {
+			file = os.Stdin
+		} else {
+			file, err = os.Open(filePath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+			defer file.Close()
+		}
+
+		body, err = io.ReadAll(file)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+	} else {
+		body = []byte(data)
+	}
+
+	return body
 }
 
 func loadURLs(urldest string) []string {
@@ -156,7 +186,7 @@ func GetArgs() Args {
 		Qps:              *qps,
 		Concurrency:      *concurrency,
 		IterationCount:   *iterationCount,
-		Host:             *host,
+		Host:             strings.Split(*host, ","),
 		Method:           *method,
 		Interval:         *interval,
 		NoReuse:          *noreuse,
@@ -169,7 +199,7 @@ func GetArgs() Args {
 		Help:             *help,
 		TotalRequests:    *totalRequests,
 		Headers:          getHeaders(*headerString),
-		Data:             *data,
+		Data:             loadBodyPayload(*data),
 		MetricAddr:       *metricAddr,
 		HashValue:        *hashValue,
 		HashSampleRate:   *hashSampleRate,

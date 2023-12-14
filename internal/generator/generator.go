@@ -1,47 +1,31 @@
-package http_client
+package generator
 
 import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/vspaz/slow_cooker/internal/cli"
 	"hash"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
-func GetHeaders(text string) map[string]string {
-	headerNameToValue := make(map[string]string)
-	headers := strings.Split(text, ",")
-	for _, header := range headers {
-		headerNameAndValue := strings.Split(header, ":")
-		if len(headerNameAndValue) == 2 {
-			headerName := strings.TrimSpace(headerNameAndValue[0])
-			headerValue := strings.TrimSpace(headerNameAndValue[1])
-			if len(headerName) > 0 {
-				headerNameToValue[headerName] = headerValue
-			}
-		}
-	}
-	return headerNameToValue
+type RequestGenerator struct {
+	httpClient *http.Client
+	NoReuse    bool
+	HashValue  uint64
 }
 
-func NewClient(
-	compress bool,
-	noreuse bool,
-	maxConn int,
-	timeout time.Duration,
-) *http.Client {
+func NewRequestGenerator(args *cli.Args) *RequestGenerator {
 	tr := http.Transport{
-		DisableCompression:  !compress,
-		DisableKeepAlives:   noreuse,
-		MaxIdleConnsPerHost: maxConn,
+		DisableCompression:  !args.Compress,
+		DisableKeepAlives:   args.NoReuse,
+		MaxIdleConnsPerHost: args.Concurrency,
 		Proxy:               http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -49,9 +33,13 @@ func NewClient(
 		TLSHandshakeTimeout: 5 * time.Second,
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 	}
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: &tr,
+	return &RequestGenerator{
+		httpClient: &http.Client{
+			Timeout:   args.ClientTimeout,
+			Transport: &tr,
+		},
+		NoReuse:   args.NoReuse,
+		HashValue: args.HashValue,
 	}
 }
 
@@ -66,23 +54,20 @@ type MeasuredResponse struct {
 	Err             error
 }
 
-func SendRequest(
-	client *http.Client,
+func (c *RequestGenerator) DoRequest(
 	method string,
-	url *url.URL,
+	url string,
 	host string,
 	headers map[string]string,
 	requestData []byte,
 	reqID uint64,
-	noreuse bool,
-	hashValue uint64,
 	checkHash bool,
 	hasher hash.Hash64,
 	received chan *MeasuredResponse,
 	bodyBuffer []byte,
 ) {
-	req, err := http.NewRequest(method, url.String(), bytes.NewBuffer(requestData))
-	req.Close = noreuse
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(requestData))
+	req.Close = c.NoReuse
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		fmt.Fprintf(os.Stderr, "\n")
@@ -105,7 +90,7 @@ func SendRequest(
 	}
 
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-	response, err := client.Do(req)
+	response, err := c.httpClient.Do(req)
 
 	if err != nil {
 		received <- &MeasuredResponse{Err: err}
@@ -128,7 +113,7 @@ func SendRequest(
 				hasher.Write(byteArray)
 				sum := hasher.Sum64()
 				failedHashCheck := false
-				if hashValue != sum {
+				if c.HashValue != sum {
 					failedHashCheck = true
 				}
 				received <- &MeasuredResponse{

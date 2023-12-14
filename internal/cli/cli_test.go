@@ -1,4 +1,4 @@
-package http_client
+package cli
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -6,12 +6,12 @@ import (
 )
 
 func TestOneHeaderPairOk(t *testing.T) {
-	headerToValue := GetHeaders("key1: value1")
+	headerToValue := getHeaders("key1: value1")
 	assert.Equal(t, "value1", headerToValue["key1"])
 }
 
 func TestMultipleHeaderPairOk(t *testing.T) {
-	headerToValue := GetHeaders("key1: value1, key2: value2, key3: value3")
+	headerToValue := getHeaders("key1: value1, key2: value2, key3: value3")
 	assert.Equal(t, "value1", headerToValue["key1"])
 	assert.Equal(t, "value2", headerToValue["key2"])
 	assert.Equal(t, "value3", headerToValue["key3"])
@@ -19,7 +19,7 @@ func TestMultipleHeaderPairOk(t *testing.T) {
 
 func TestBadlyFormattedHeaderStringOk(t *testing.T) {
 	badlyFormattedHeaderString := " key1:value1,    key2: value2,key3:  value3 , "
-	headerToValue := GetHeaders(badlyFormattedHeaderString)
+	headerToValue := getHeaders(badlyFormattedHeaderString)
 	assert.Equal(t, 3, len(headerToValue))
 	assert.Equal(t, "value1", headerToValue["key1"])
 	assert.Equal(t, "value2", headerToValue["key2"])
@@ -27,10 +27,10 @@ func TestBadlyFormattedHeaderStringOk(t *testing.T) {
 }
 
 func TestMissingHeaderNameOk(t *testing.T) {
-	headerToValue := GetHeaders(" :value1")
+	headerToValue := getHeaders(" :value1")
 	assert.Empty(t, headerToValue)
 }
 
 func TestNoHeadersOk(t *testing.T) {
-	assert.Empty(t, GetHeaders(" "))
+	assert.Empty(t, getHeaders(" "))
 }

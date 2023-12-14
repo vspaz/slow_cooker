@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/vspaz/slow_cooker/internal/http_client"
 	"net/url"
 	"os"
 	"path"
@@ -33,7 +32,7 @@ type Args struct {
 	MetricAddr       string
 	HashValue        uint64
 	HashSampleRate   float64
-	DstUrls          []*url.URL
+	DstUrls          []string
 }
 
 func exUsage(msg string, args ...interface{}) {
@@ -42,8 +41,24 @@ func exUsage(msg string, args ...interface{}) {
 	os.Exit(64)
 }
 
-func loadURLs(urldest string) []*url.URL {
-	var urls []*url.URL
+func getHeaders(text string) map[string]string {
+	headerNameToValue := make(map[string]string)
+	headers := strings.Split(text, ",")
+	for _, header := range headers {
+		headerNameAndValue := strings.Split(header, ":")
+		if len(headerNameAndValue) == 2 {
+			headerName := strings.TrimSpace(headerNameAndValue[0])
+			headerValue := strings.TrimSpace(headerNameAndValue[1])
+			if len(headerName) > 0 {
+				headerNameToValue[headerName] = headerValue
+			}
+		}
+	}
+	return headerNameToValue
+}
+
+func loadURLs(urldest string) []string {
+	var urls []string
 	var err error
 	var scanner *bufio.Scanner
 
@@ -75,7 +90,7 @@ func loadURLs(urldest string) []*url.URL {
 		} else if URL.Host == "" {
 			exUsage("invalid URL on line %d: '%s': Missing host\n", i, line)
 		}
-		urls = append(urls, URL)
+		urls = append(urls, URL.String())
 	}
 
 	return urls
@@ -92,8 +107,7 @@ func GetArgs() Args {
 	compress := flag.Bool("compress", false, "use compression")
 	clientTimeout := flag.Duration("timeout", 10*time.Second, "individual request timeout")
 	noLatencySummary := flag.Bool("noLatencySummary", false, "suppress the final latency summary")
-	reportLatenciesCSV := flag.String("reportLatenciesCSV", "",
-		"filename to output hdrhistogram latencies in CSV")
+	reportLatenciesCSV := flag.String("reportLatenciesCSV", "", "filename to output hdrhistogram latencies in CSV")
 	latencyUnit := flag.String("latencyUnit", "ms", "latency units [ms|us|ns]")
 	help := flag.Bool("help", false, "show help message")
 	totalRequests := flag.Uint64("totalRequests", 0, "total number of requests to send before exiting")
@@ -154,7 +168,7 @@ func GetArgs() Args {
 		LatencyDuration:  latencyDur,
 		Help:             *help,
 		TotalRequests:    *totalRequests,
-		Headers:          http_client.GetHeaders(*headerString),
+		Headers:          getHeaders(*headerString),
 		Data:             *data,
 		MetricAddr:       *metricAddr,
 		HashValue:        *hashValue,

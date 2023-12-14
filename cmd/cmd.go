@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/vspaz/slow_cooker/internal/cli"
+	"github.com/vspaz/slow_cooker/internal/generator"
 	"github.com/vspaz/slow_cooker/internal/hdrreport"
-	"github.com/vspaz/slow_cooker/internal/http_client"
 	"github.com/vspaz/slow_cooker/internal/metrics"
 	"github.com/vspaz/slow_cooker/internal/ring"
 	"github.com/vspaz/slow_cooker/internal/utils"
@@ -63,12 +63,12 @@ func Run() {
 	hist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	globalHist := hdrhistogram.New(0, dayInTimeUnits, 3)
 	latencyHistory := ring.New(5)
-	received := make(chan *http_client.MeasuredResponse)
+	received := make(chan *generator.MeasuredResponse)
 	timeout := time.After(args.Interval)
 	timeToWait := utils.CalcTimeToWait(&args.Qps)
 	totalTrafficTarget := args.Qps * args.Concurrency * int(args.Interval.Seconds())
 
-	client := http_client.NewClient(args.Compress, args.NoReuse, args.Concurrency, args.ClientTimeout)
+	requestGenerator := generator.NewRequestGenerator(&args)
 	var sendTraffic sync.WaitGroup
 	// The time portion of the header can change due to timezone.
 	timeLen := len(time.Now().Format(time.RFC3339))
@@ -102,16 +102,13 @@ func Run() {
 					return
 				}
 				shouldFinishLock.RUnlock()
-				http_client.SendRequest(
-					client,
+				requestGenerator.DoRequest(
 					args.Method,
 					args.DstUrls[y],
 					hosts[rand.Intn(len(hosts))],
 					args.Headers,
 					requestData,
 					atomic.AddUint64(&reqID, 1),
-					args.NoReuse,
-					args.HashValue,
 					checkHash,
 					hasher,
 					received,

@@ -225,7 +225,7 @@ func Run() {
 				if managedResp.FailedHashCheck {
 					failedHashCheck++
 				}
-				if managedResp.Code >= 200 && managedResp.Code < 500 {
+				if managedResp.Code/100 == 2 {
 					good++
 					metrics.UpdateLatencyMetrics(respLatencyNS)
 				} else {

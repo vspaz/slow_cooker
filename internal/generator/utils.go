@@ -20,7 +20,11 @@ func ShouldCheckHash(sampleRate float64) bool {
 
 func GetRequestInfo(args *cli.Args) string {
 	if len(args.DstUrls) == 1 {
-		return fmt.Sprintf("# sending %d %s req/s with concurrency=%d to %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[0])
+		return fmt.Sprintf(
+			"# sending %d %s req/s with concurrency=%d to %s ...\n",
+			(args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[0])
 	}
-	return fmt.Sprintf("# sending %d %s req/s with concurrency=%d using url list %s ...\n", (args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[1:])
+	return fmt.Sprintf(
+		"# sending %d %s req/s with concurrency=%d using url list %s ...\n",
+		(args.Qps * args.Concurrency), args.Method, args.Concurrency, args.DstUrls[1:])
 }

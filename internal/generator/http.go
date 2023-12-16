@@ -65,14 +65,7 @@ type MeasuredResponse struct {
 	Err             error
 }
 
-func (c *RequestGenerator) DoRequest(
-	offset int,
-	reqID uint64,
-	checkHash bool,
-	hasher hash.Hash64,
-	received chan *MeasuredResponse,
-	bodyBuffer []byte,
-) {
+func (c *RequestGenerator) parametrizeRequest(offset int, reqID uint64) *http.Request {
 	req, err := http.NewRequest(c.Method, c.Urls[offset], bytes.NewBuffer(c.Body))
 	req.Close = c.NoReuse
 	if err != nil {
@@ -87,7 +80,18 @@ func (c *RequestGenerator) DoRequest(
 	for k, v := range c.Headers {
 		req.Header.Add(k, v)
 	}
+	return req
+}
 
+func (c *RequestGenerator) DoRequest(
+	offset int,
+	reqID uint64,
+	checkHash bool,
+	hasher hash.Hash64,
+	received chan *MeasuredResponse,
+	bodyBuffer []byte,
+) {
+	req := c.parametrizeRequest(offset, reqID)
 	var elapsed time.Duration
 	start := time.Now()
 
